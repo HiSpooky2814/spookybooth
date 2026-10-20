@@ -81,6 +81,15 @@
       transition: outline 0.18s ease, border-color 0.18s ease;
     }
 
+    /* 允许出纸机图片被手机长按唤起保存相册菜单 */
+    .dispensed-saveable-img {
+      -webkit-touch-callout: default !important;
+      -webkit-user-select: auto !important;
+      user-select: auto !important;
+      pointer-events: auto !important;
+      cursor: pointer;
+    }
+
     .slot-selected-shadow { outline: none !important; }
     .slot-default-shadow { outline: none !important; }
 
@@ -1523,7 +1532,7 @@
         const imgLeft = document.createElement('img');
         imgLeft.src = previewData[0];
         imgLeft.alt = "Left strip";
-        imgLeft.className = 'max-h-[310px] w-auto object-contain block shadow-inner';
+        imgLeft.className = 'dispensed-saveable-img max-h-[310px] w-auto object-contain block shadow-inner';
         cardLeft.appendChild(imgLeft);
 
         const cardRight = document.createElement('div');
@@ -1531,7 +1540,7 @@
         const imgRight = document.createElement('img');
         imgRight.src = previewData[1];
         imgRight.alt = "Right bookmark";
-        imgRight.className = 'max-h-[310px] w-auto object-contain block shadow-inner';
+        imgRight.className = 'dispensed-saveable-img max-h-[310px] w-auto object-contain block shadow-inner';
         cardRight.appendChild(imgRight);
 
         dispensedPreviewContainer.appendChild(cardLeft);
@@ -1541,7 +1550,7 @@
         const img = document.createElement('img');
         img.src = previewData;
         img.alt = "Printed cut";
-        img.className = 'max-h-[340px] w-auto object-contain block shadow-inner';
+        img.className = 'dispensed-saveable-img max-h-[340px] w-auto object-contain block shadow-inner';
         dispensedPreviewContainer.appendChild(img);
       }
 
