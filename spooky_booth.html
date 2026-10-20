@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spooky Booth - A Halloween Photo Booth by HiSpooky</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Creepster&family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=VT323&display=swap" rel="stylesheet">
+  
+  <!-- 不用看我的源码了，大部分都是vibecoding的，不过我都有review过 -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', '"PingFang SC"', '"Hiragino Sans GB"', '"Microsoft YaHei"', '"Noto Sans SC"', 'sans-serif'],
+            serif: ['Cinzel', 'serif'],
+            spooky: ['Creepster', 'cursive'],
+            mono: ['VT323', 'monospace', 'Courier New']
+          },
+          colors: {
+            spooky: {
+              cream: '#F7CB8C', 
+              orange: '#FC7E2F', 
+              rust: '#C35031',  
+              charcoal: '#403B37',  
+              charcoalDeep: '#2C2724', 
+              charcoalDarker: '#1E1B19', 
+              paperWarm: '#edd8aa'
+            }
+          },
+          boxShadow: {
+            'card-pitch': 'none',
+            'solid-dark': 'none',
+            'solid-lift': 'none',
+            'btn-hover': 'none'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    *, ::before, ::after {
+      --tw-shadow: 0 0 #0000 !important;
+      --tw-shadow-colored: 0 0 #0000 !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      overflow-x: hidden !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      position: relative;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* 万圣滤镜 */
+    .filter-original { filter: none; }
+    .filter-pumpkin { filter: sepia(0.35) saturate(1.4) contrast(1.1) hue-rotate(-12deg); }
+    .filter-vampire { filter: contrast(1.3) saturate(1.35) brightness(0.9); }
+    .filter-noir { filter: grayscale(1) contrast(1.45) brightness(0.92); }
+    .filter-fog { filter: contrast(0.9) brightness(1.05) saturate(0.7) hue-rotate(180deg); }
+    .filter-ghoul { filter: hue-rotate(85deg) saturate(1.3) contrast(1.15) brightness(0.96); }
+
+    .photo-slot {
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: outline 0.18s ease, border-color 0.18s ease;
+    }
+
+    /* 纯平高亮边线替代阴影 */
+    .slot-selected-shadow {
+      outline: none !important;
+    }
+    .slot-default-shadow {
+      outline: none !important;
+    }
+
+    /* 悬浮删除快捷按钮 */
+    .slot-hover-delete {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .photo-slot:hover .slot-hover-delete,
+    .photo-slot.slot-selected-shadow .slot-hover-delete {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+
+    /* 撕开动画状态类（纯平移动，去除扩散阴影） */
+    .sheet-half {
+      transition: transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
+      will-change: transform;
+    }
+
+    /* 未撕开状态：贴合 */
+    .sheet-joined .sheet-left {
+      transform: translateX(0) rotate(0deg);
+    }
+    .sheet-joined .sheet-right {
+      transform: translateX(0) rotate(0deg);
+    }
+
+    /* 已撕开状态：左右微倾斜滑开 */
+    .sheet-torn .sheet-left {
+      transform: translateX(-18px) rotate(-1.6deg);
+    }
+    .sheet-torn .sheet-right {
+      transform: translateX(18px) rotate(1.6deg);
+    }
+
+    /* 轻淡紫色齿孔，减弱相纸中缝的视觉重量 */
+    .tear-perforation {
+      background-image: radial-gradient(circle, rgba(205, 155, 215, 0.58) 1px, transparent 1.5px);
+      background-size: 4px 9px;
+      background-repeat: repeat-y;
+      background-position: center;
+    }
+
+    /* 线下快照机机械出纸动画 */
+    @keyframes dispenseSlideOut {
+      0% {
+        transform: translateY(-82%) scale(0.96);
+        opacity: 0;
+      }
+      25% {
+        opacity: 1;
+      }
+      82% {
+        transform: translateY(0) scale(1);
+      }
+      90% {
+        transform: translateY(-6px) scale(1);
+      }
+      100% {
+        transform: translateY(0) scale(1);
+      }
+    }
+    .anim-dispense {
+      animation: dispenseSlideOut 1.45s cubic-bezier(0.25, 1, 0.38, 1) forwards;
+      will-change: transform, opacity;
+    }
+  </style>
+</head>
+<!--
+  四张照片都已冲印。
+  但后台记录显示，取纸槽里多出了一张。
+  如果你看到了这段注释——请确认身后没有第五个人。
+
+  All four photos have been printed.
+  But the log says there is one extra photo in the tray.
+  If you found this comment, make sure there is no fifth person behind you.
+-->
+<body class="bg-[#F7CB8C] text-[#403B37] antialiased min-h-screen lg:h-screen flex flex-col font-sans selection:bg-spooky-orange selection:text-spooky-charcoal overflow-x-hidden w-full max-w-full">
+
+  <!-- 顶部导航栏：严禁横向撑开，左右紧凑对齐 -->
+  <header class="w-full max-w-full bg-spooky-charcoal border-b border-spooky-rust/40 sticky top-0 z-40 px-2.5 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between shadow-card-pitch box-border">
+    <div class="flex items-center gap-2 min-w-0 flex-1 mr-1.5">
+      <div class="min-w-0">
+        <h1 class="font-spooky text-xl sm:text-3xl text-spooky-orange tracking-wider leading-none truncate">
+          Spooky Booth
+        </h1>
+        <p id="app-subtitle" data-i18n="subtitle" class="text-[10px] sm:text-[11px] text-spooky-cream/80 tracking-wide mt-0.5 font-medium truncate max-w-[135px] sm:max-w-none">
+          By HiSpooky
+        </p>
+      </div>
+    </div>
+
+    <!-- 顶部操作区：防止折行与撑开 -->
+    <div class="flex items-center gap-1 sm:gap-2 shrink-0">
+      <!-- 撕开/合拢 快捷动作 -->
+      <button id="btn-toggle-tear" class="px-2 sm:px-3 py-1.5 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-orange hover:text-spooky-charcoal text-spooky-orange text-xs font-semibold transition-all shadow-md active:scale-95 flex items-center gap-1 border border-spooky-orange/30">
+        <i id="tear-icon" class="fa-solid fa-scissors"></i>
+        <span id="tear-label" data-i18n="btn_tear" class="hidden md:inline">撕开相纸</span>
+      </button>
+
+      <!-- 中英语言切换 -->
+      <button id="btn-lang-toggle" class="px-2 py-1.5 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-orange hover:text-spooky-charcoal text-spooky-cream text-xs font-semibold transition-all shadow-md flex items-center gap-1 border border-spooky-cream/20">
+        <i class="fa-solid fa-globe text-xs"></i>
+        <span id="lang-label">EN</span>
+      </button>
+
+      <!-- 批量导入 -->
+      <button id="btn-batch-upload" class="px-2 sm:px-3.5 py-1.5 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-xs sm:text-sm font-medium text-spooky-cream transition-all shadow-md hover:shadow-btn-hover flex items-center gap-1 border border-spooky-cream/20">
+        <i class="fa-solid fa-images text-spooky-orange"></i>
+        <span data-i18n="btn_batch" class="hidden lg:inline">导入4张照片</span>
+      </button>
+
+      <!-- 清空照片 -->
+      <button id="btn-clear-all" class="px-2 sm:px-3 py-1.5 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-rust text-xs sm:text-sm text-spooky-cream/70 hover:text-white transition-all shadow-md flex items-center gap-1 border border-spooky-rust/40">
+        <i class="fa-solid fa-trash-can text-xs"></i>
+        <span data-i18n="btn_clear" class="hidden sm:inline">清空</span>
+      </button>
+
+      <!-- 导出菜单按钮 -->
+      <button id="btn-export-menu" class="px-2.5 sm:px-4 py-1.5 rounded-xl bg-spooky-orange text-spooky-charcoal hover:opacity-95 text-xs sm:text-sm font-bold active:scale-95 transition-all shadow-md hover:shadow-solid-lift flex items-center gap-1">
+        <i class="fa-solid fa-download"></i>
+        <span data-i18n="btn_export" class="hidden sm:inline">导出相片</span>
+        <i class="fa-solid fa-chevron-down text-[10px] ml-0.5"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主工作区：暖奶杏黄底色 (#F7CB8C)，桌面端严格同高伸展 -->
+  <main class="flex-1 flex flex-col lg:flex-row items-stretch overflow-x-hidden overflow-y-auto lg:overflow-hidden max-w-[1700px] w-full mx-auto p-2 sm:p-5 gap-3 sm:gap-5 min-w-0 min-h-0 box-border lg:h-full">
+    
+    <!-- 左侧/中间：双联相纸预览工作台（桌面端铺满等高） -->
+    <section class="flex-1 min-w-0 w-full max-w-full bg-[#f1ddba]/75 rounded-3xl border border-spooky-rust/35 p-2 sm:p-6 pt-3 sm:pt-6 pb-11 sm:pb-14 flex flex-col items-center justify-start sm:justify-center overflow-x-hidden overflow-y-visible relative min-h-[460px] sm:min-h-[560px] lg:min-h-0 lg:h-full box-border">
+
+      <!-- 相纸居中容器：置于上方优先展示 -->
+      <div class="w-full max-w-full flex justify-center items-center overflow-visible my-auto">
+        <div id="photostrip-wrapper" class="relative transition-all duration-300 transform scale-[0.82] sm:scale-90 md:scale-95 lg:scale-100 origin-top sm:origin-center mt-1 sm:my-auto select-none">
+          
+          <!-- 双联卡片母体 -->
+          <div id="twin-sheet" class="sheet-joined relative flex items-stretch">
+          <div id="sheet-left" class="sheet-half sheet-left relative w-[265px] aspect-[641/1920] bg-spooky-charcoal rounded-l-2xl overflow-hidden p-3.5 flex flex-col z-20 shadow-card-pitch border border-spooky-charcoal">
+            
+            <!-- 4个照片插槽 -->
+            <div id="slots-container" class="absolute inset-0 z-10 pointer-events-none">
+              <!-- Slot 0 -->
+              <div class="photo-slot absolute overflow-hidden bg-spooky-charcoalDeep cursor-grab active:cursor-grabbing group select-none slot-default-shadow pointer-events-auto" data-index="0" style="left:34.6334%;top:7.7083%;width:52.1061%;height:15.3125%">
+                <div class="slot-content absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden"></div>
+              </div>
+
+              <!-- Slot 1 -->
+              <div class="photo-slot absolute overflow-hidden bg-spooky-charcoalDeep cursor-grab active:cursor-grabbing group select-none slot-default-shadow pointer-events-auto" data-index="1" style="left:30.2652%;top:25.625%;width:55.8502%;height:17.2917%">
+                <div class="slot-content absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden"></div>
+              </div>
+
+              <!-- Slot 2 -->
+              <div class="photo-slot absolute overflow-hidden bg-spooky-charcoalDeep cursor-grab active:cursor-grabbing group select-none slot-default-shadow pointer-events-auto" data-index="2" style="left:13.1045%;top:46.5625%;width:51.4821%;height:16.7708%">
+                <div class="slot-content absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden"></div>
+              </div>
+
+              <!-- Slot 3 -->
+              <div class="photo-slot absolute overflow-hidden bg-spooky-charcoalDeep cursor-grab active:cursor-grabbing group select-none slot-default-shadow pointer-events-auto" data-index="3" style="left:20.2808%;top:67.9167%;width:70.2028%;height:16.7708%">
+                <div class="slot-content absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden"></div>
+              </div>
+            </div>
+
+            <!-- PNG 相框前景层；透明镂空处透出照片，且不拦截照片手势 -->
+            <div id="frame-overlay" class="absolute inset-0 pointer-events-none z-20 overflow-hidden">
+              <img src="./spookyboothL.png" alt="" aria-hidden="true" class="absolute inset-0 w-full h-full object-fill pointer-events-none select-none" draggable="false">
+            </div>
+
+          </div>
+
+          <!-- 中缝易撕线：低对比紫色细齿孔 -->
+          <div id="tear-divider" class="relative w-2 z-30 flex flex-col items-center justify-center cursor-pointer group bg-transparent" title="点击撕开或复原双联相纸">
+            <div class="w-full h-full tear-perforation pointer-events-none"></div>
+          </div>
+
+          <!-- ================= 右联：使用裁切后的原创书签图 ================= -->
+          <div id="sheet-right" class="sheet-half sheet-right relative w-[265px] aspect-[641/1920] bg-spooky-charcoal rounded-r-2xl overflow-hidden z-20 border border-spooky-charcoal">
+            <img src="./spookyboothR.jpg" alt="万圣节书签插画" class="absolute inset-0 w-full h-full object-fill pointer-events-none select-none" draggable="false">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 底部提示与徽章栏（与相框调换后的位置：位于相框下方） -->
+      <div class="absolute bottom-2.5 sm:bottom-4 inset-x-2.5 sm:inset-x-6 z-30 flex items-center justify-between gap-2 pointer-events-none max-w-full box-border">
+        <!-- 左侧提示：深炭色小幽灵图标（无底色） + 允许自动折为两行并垂直居中对齐 -->
+        <div class="pointer-events-auto flex items-center gap-1.5 px-1 py-0.5 text-[11px] sm:text-xs font-semibold text-spooky-charcoal min-w-0 flex-1">
+          <i class="fa-solid fa-ghost text-spooky-charcoal text-sm shrink-0"></i>
+          <span id="tip-main" data-i18n="tip_gesture" class="leading-tight break-words">左侧四格可拖拽平移，右侧为同尺寸万圣收藏书签</span>
+        </div>
+
+        <!-- 右侧连体版徽章 -->
+        <button id="status-sheet-state-btn" class="pointer-events-auto flex items-center gap-1 bg-spooky-charcoal px-2.5 sm:px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-mono text-spooky-orange shadow-md hover:shadow-solid-lift active:scale-95 transition-all shrink-0 border border-spooky-orange/40 self-center">
+          <span id="status-sheet-state">● 连体版</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 右侧：控制面板 (#403B37 底色，桌面端与左侧严格同高对齐) -->
+    <aside class="w-full lg:w-[410px] bg-spooky-charcoal text-spooky-cream rounded-3xl shadow-card-pitch flex flex-col overflow-hidden border border-spooky-rust/30 lg:h-full lg:min-h-0">
+      
+
+      <!-- 面板滚动容器 -->
+      <div class="flex-1 overflow-y-auto px-4 sm:px-5 pt-2.5 pb-4 space-y-4">
+
+        <!-- 照片调整面板 -->
+        <div class="space-y-4">
+          
+          <!-- 双联相纸模式切换条 -->
+          <div class="bg-spooky-charcoalDeep p-3 rounded-2xl shadow-sm flex items-center justify-between border border-spooky-rust/20">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-file-lines text-spooky-orange text-sm"></i>
+              <div>
+                <span class="text-xs font-bold text-spooky-cream" data-i18n="label_sheet_mode">双联纸张状态</span>
+                <p class="text-[10px] text-spooky-cream/60" data-i18n="desc_sheet_mode">模拟真机打印联排，可随时撕开/合拢</p>
+              </div>
+            </div>
+            <button id="btn-tear-sidebar" class="px-3 py-1.5 rounded-xl bg-spooky-charcoal text-spooky-orange hover:bg-spooky-orange hover:text-spooky-charcoal text-xs font-bold transition-all shadow-sm border border-spooky-orange/30">
+              <span id="label-tear-sidebar">撕开相纸</span>
+            </button>
+          </div>
+
+          <!-- 槽位选择切换 -->
+          <div>
+            <label class="block text-xs font-bold text-spooky-cream/80 uppercase tracking-wider mb-2" data-i18n="label_select_slot">选择要调节的照片格</label>
+            <div class="grid grid-cols-4 gap-2">
+              <button class="slot-select-btn py-2 px-1 rounded-xl bg-spooky-orange text-spooky-charcoal font-bold text-xs shadow-md transition-all transform scale-[1.02]" data-slot="0" data-i18n="slot_num_1">第 1 格</button>
+              <button class="slot-select-btn py-2 px-1 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-spooky-cream/70 font-semibold text-xs shadow-sm transition-all" data-slot="1" data-i18n="slot_num_2">第 2 格</button>
+              <button class="slot-select-btn py-2 px-1 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-spooky-cream/70 font-semibold text-xs shadow-sm transition-all" data-slot="2" data-i18n="slot_num_3">第 3 格</button>
+              <button class="slot-select-btn py-2 px-1 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-spooky-cream/70 font-semibold text-xs shadow-sm transition-all" data-slot="3" data-i18n="slot_num_4">第 4 格</button>
+            </div>
+          </div>
+
+          <!-- 当前槽位操作 -->
+          <div class="bg-spooky-charcoalDeep p-3.5 rounded-2xl shadow-card-pitch space-y-3.5 border border-spooky-rust/20">
+            <div class="flex items-center justify-between">
+              <span id="active-slot-name" class="text-xs font-bold text-spooky-cream">正在编辑：第 1 格照片</span>
+              <div class="flex items-center gap-2.5">
+                <label class="text-xs text-spooky-orange font-bold cursor-pointer hover:underline flex items-center gap-1">
+                  <i class="fa-solid fa-upload"></i>
+                  <span data-i18n="action_replace">替换</span>
+                  <input id="input-single-slot-photo" type="file" accept="image/*" class="hidden">
+                </label>
+                <button id="btn-delete-active-slot" class="text-xs text-spooky-cream/60 hover:text-spooky-rust font-medium transition-colors flex items-center gap-1" title="清空当前格照片">
+                  <i class="fa-regular fa-trash-can"></i>
+                  <span data-i18n="btn_delete_single">删除</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 缩放滑块 -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-spooky-cream/80 flex items-center gap-1.5"><i class="fa-solid fa-magnifying-glass-plus text-spooky-orange"></i><span data-i18n="label_zoom">大小缩放</span></span>
+                <span id="val-zoom" class="font-mono text-spooky-orange font-bold">100%</span>
+              </div>
+              <input id="slider-zoom" type="range" min="0.2" max="3.5" step="0.01" value="1" class="w-full accent-spooky-orange bg-spooky-charcoal rounded-lg cursor-pointer h-2">
+              <div class="flex justify-between text-[10px] text-spooky-cream/50 font-mono">
+                <span>20% (查看全貌)</span>
+                <span>350% (特写局部)</span>
+              </div>
+            </div>
+
+            <!-- 旋转滑块 -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs">
+                <span class="text-spooky-cream/80 flex items-center gap-1.5"><i class="fa-solid fa-rotate text-spooky-orange"></i><span data-i18n="label_rotate">角度微调</span></span>
+                <span id="val-rotate" class="font-mono text-spooky-orange font-bold">0°</span>
+              </div>
+              <input id="slider-rotate" type="range" min="-45" max="45" step="1" value="0" class="w-full accent-spooky-orange bg-spooky-charcoal rounded-lg cursor-pointer h-2">
+            </div>
+
+            <!-- 翻转与复位 -->
+            <div class="flex items-center gap-2 pt-1">
+              <button id="btn-flip-photo" class="flex-1 py-1.5 bg-spooky-charcoal hover:bg-spooky-charcoalDarker rounded-xl text-xs font-medium text-spooky-cream transition-all shadow-sm flex items-center justify-center gap-1.5 border border-spooky-cream/10">
+                <i class="fa-solid fa-arrows-left-right text-xs text-spooky-orange"></i>
+                <span data-i18n="btn_flip">水平翻转</span>
+              </button>
+              <button id="btn-fit-photo" class="flex-1 py-1.5 bg-spooky-charcoal hover:bg-spooky-charcoalDarker rounded-xl text-xs font-medium text-spooky-cream transition-all shadow-sm flex items-center justify-center gap-1.5 border border-spooky-cream/10" title="将整张照片缩小完整放入格中">
+                <i class="fa-solid fa-expand text-xs text-spooky-orange"></i>
+                <span data-i18n="btn_fit_full">适应全图</span>
+              </button>
+              <button id="btn-reset-transform" class="flex-1 py-1.5 bg-spooky-charcoal hover:bg-spooky-charcoalDarker rounded-xl text-xs font-medium text-spooky-cream transition-all shadow-sm flex items-center justify-center gap-1.5 border border-spooky-cream/10">
+                <i class="fa-solid fa-arrow-rotate-left text-xs text-spooky-orange"></i>
+                <span data-i18n="btn_reset">居中复位</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-spooky-cream/80 uppercase tracking-wider mb-2.5" data-i18n="label_filters">万圣气氛滤镜</label>
+            <div class="grid grid-cols-3 gap-2 text-xs">
+              <button class="filter-btn p-2 rounded-xl bg-spooky-orange text-spooky-charcoal font-bold text-center shadow-md transition-all" data-filter="filter-original" data-i18n="filter_orig">原图色彩</button>
+              <button class="filter-btn p-2 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-spooky-cream/80 font-medium text-center shadow-sm transition-all border border-spooky-cream/10" data-filter="filter-pumpkin" data-i18n="filter_pumpkin">南瓜暖阳</button>
+              <button class="filter-btn p-2 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-spooky-cream/80 font-medium text-center shadow-sm transition-all border border-spooky-cream/10" data-filter="filter-vampire" data-i18n="filter_vampire">血夜红影</button>
+              <button class="filter-btn p-2 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-spooky-cream/80 font-medium text-center shadow-sm transition-all border border-spooky-cream/10" data-filter="filter-noir" data-i18n="filter_noir">哥特黑白</button>
+              <button class="filter-btn p-2 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-spooky-cream/80 font-medium text-center shadow-sm transition-all border border-spooky-cream/10" data-filter="filter-fog" data-i18n="filter_fog">幽夜迷雾</button>
+              <button class="filter-btn p-2 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-spooky-cream/80 font-medium text-center shadow-sm transition-all border border-spooky-cream/10" data-filter="filter-ghoul" data-i18n="filter_ghoul">鬼火荧绿</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 底部创作者署名 -->
+      <div class="p-4 bg-spooky-charcoalDeep shadow-md space-y-2.5 border-t border-spooky-rust/20">
+        <div class="flex items-center justify-between text-xs">
+          <div class="flex items-center gap-1.5">
+            <span class="text-spooky-cream/70" data-i18n="label_creator">制作</span>:
+            <a id="creator-link" href="https://hispooky.lofter.com/" target="_blank" rel="noopener noreferrer" class="text-spooky-orange hover:text-spooky-cream font-semibold underline underline-offset-2 transition-colors inline-flex items-center gap-0.5">
+              @HiSpooky
+              <i class="fa-solid fa-arrow-up-right-from-square text-[9px] ml-0.5"></i>
+            </a>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-spooky-cream/70" data-i18n="label_artist">相框绘制</span>:
+            <a href="https://starbaguette.lofter.com/" target="_blank" rel="noopener noreferrer" class="text-spooky-cream hover:text-spooky-orange font-semibold underline underline-offset-2 transition-colors inline-flex items-center gap-0.5">
+              星驰法棍
+              <i class="fa-solid fa-arrow-up-right-from-square text-[9px] ml-0.5"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-2 text-[11px] text-spooky-cream/90 bg-spooky-charcoal rounded-xl p-2.5 shadow-sm border border-spooky-rust/20">
+          <i class="fa-solid fa-camera-retro text-spooky-orange mt-0.5 shrink-0 text-xs"></i>
+          <span id="credit-return-note" class="leading-relaxed text-[11px]">
+            欢迎在 LOFTER 搜索 <a href="https://hispooky.lofter.com/" target="_blank" rel="noopener noreferrer" class="text-spooky-orange hover:text-spooky-cream font-semibold underline underline-offset-2 transition-colors inline-flex items-center gap-0.5">HiSpooky<i class="fa-solid fa-arrow-up-right-from-square text-[9px] ml-0.5"></i></a> 在相关动态下返图
+          </span>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- 导出弹窗 -->
+  <div id="export-modal" class="fixed inset-0 z-50 bg-spooky-charcoal/80 backdrop-blur-xs flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-200 font-sans">
+    <div class="bg-spooky-charcoal rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-card-pitch space-y-4 transform scale-95 transition-transform duration-200 border border-spooky-rust/40 font-sans">
+      
+      <div class="flex items-center justify-between border-b border-spooky-rust/30 pb-3">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-print text-spooky-orange text-lg"></i>
+          <h3 class="font-bold text-base text-spooky-cream font-sans" data-i18n="modal_title">选择相片导出方式</h3>
+        </div>
+        <button id="btn-close-modal" class="text-spooky-cream/60 hover:text-spooky-cream text-lg px-2">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <p id="modal-desc-text" class="text-xs text-spooky-cream/80 leading-relaxed font-sans" data-i18n="modal_desc">
+        为还原人生四格真实打印过程，本网页支持原版双联整幅输出，或撕开分为相片与书签两张独立高清图片。
+      </p>
+
+      <div class="space-y-2.5 pt-1">
+        <!-- 选项 1：整版双联合并导出 -->
+        <button id="btn-export-combined" class="w-full p-3.5 rounded-2xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal transition-all flex items-center justify-between text-left group shadow-sm hover:shadow-solid-lift border border-spooky-orange/30">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-spooky-orange text-spooky-charcoal flex items-center justify-center text-lg shadow-sm">
+              <i class="fa-solid fa-clone"></i>
+            </div>
+            <div>
+              <span class="text-xs font-bold text-spooky-cream block group-hover:text-spooky-orange transition-colors" data-i18n="opt_full_sheet">导出整版双联相纸</span>
+              <span class="text-[10px] text-spooky-cream/60" data-i18n="opt_full_sheet_desc">左侧照片 + 右侧书签，直接拼接</span>
+            </div>
+          </div>
+          <i class="fa-solid fa-arrow-down-long text-spooky-cream/40 group-hover:text-spooky-orange transition-colors"></i>
+        </button>
+
+        <!-- 选项 2：分开导出（左右各一张） -->
+        <button id="btn-export-split" class="w-full p-3.5 rounded-2xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal transition-all flex items-center justify-between text-left group shadow-sm hover:shadow-solid-lift border border-spooky-rust/30">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-spooky-cream text-spooky-charcoal flex items-center justify-center text-lg shadow-sm">
+              <i class="fa-solid fa-scissors"></i>
+            </div>
+            <div>
+              <span class="text-xs font-bold text-spooky-cream block group-hover:text-spooky-orange transition-colors" data-i18n="opt_separated">分开导出独立双卡</span>
+              <span class="text-[10px] text-spooky-cream/60" data-i18n="opt_separated_desc">自动裁切为两张等大卡片：一张相片与一张书签</span>
+            </div>
+          </div>
+          <i class="fa-solid fa-download text-spooky-cream/40 group-hover:text-spooky-cream transition-colors"></i>
+        </button>
+
+        <!-- 选项 3：仅导出左侧照片条 -->
+        <button id="btn-export-left-only" class="w-full p-3 rounded-2xl bg-spooky-charcoal hover:bg-spooky-charcoalDeep text-spooky-cream/80 hover:text-spooky-cream transition-all flex items-center justify-between text-left text-xs font-medium shadow-inner border border-spooky-cream/10">
+          <span data-i18n="opt_photo_only">仅导出左侧四格相片</span>
+          <i class="fa-solid fa-image text-spooky-cream/40"></i>
+        </button>
+      </div>
+
+      <!-- 导出弹窗内的返图提示卡片 -->
+      <div class="pt-2 border-t border-spooky-rust/20">
+        <div class="flex items-start gap-2 text-[11px] text-spooky-cream/90 bg-spooky-charcoalDeep rounded-xl p-2.5 border border-spooky-rust/30">
+          <i class="fa-solid fa-camera-retro text-spooky-orange mt-0.5 shrink-0 text-xs"></i>
+          <span id="modal-return-note" class="leading-relaxed text-[11px]">
+            欢迎在 LOFTER 搜索 <a href="https://hispooky.lofter.com/" target="_blank" rel="noopener noreferrer" class="text-spooky-orange hover:text-spooky-cream font-semibold underline underline-offset-2 transition-colors inline-flex items-center gap-0.5">HiSpooky<i class="fa-solid fa-arrow-up-right-from-square text-[9px] ml-0.5"></i></a> 在相关动态下返图
+          </span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 模拟线下出纸机器组件 -->
+  <div id="dispenser-overlay" class="fixed inset-0 z-50 bg-spooky-charcoal/85 backdrop-blur-xs flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300 font-sans">
+    <div class="relative w-full max-w-sm sm:max-w-md bg-spooky-charcoal rounded-3xl p-5 shadow-card-pitch flex flex-col items-center overflow-hidden border border-spooky-rust/40 font-sans">
+      <!-- 状态栏 -->
+      <div class="w-full flex items-center justify-between border-b border-spooky-rust/30 pb-3 mb-4">
+        <div class="flex items-center gap-2.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-spooky-orange animate-ping"></span>
+          <span id="dispenser-status-text" class="font-sans text-xs font-bold text-spooky-orange tracking-wider">
+            ✦ 胶片冲印出纸中... ✦
+          </span>
+        </div>
+        <button id="btn-close-dispenser" class="text-spooky-cream/60 hover:text-spooky-cream text-xs px-2 py-1 rounded-lg hover:bg-spooky-charcoalDeep transition-colors" title="关闭">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <!-- 机械出纸口狭缝结构 -->
+      <div class="w-full relative flex flex-col items-center">
+        <!-- 金属狭缝凹槽 -->
+        <div class="w-11/12 h-3.5 bg-spooky-charcoalDeep rounded-full shadow-inner flex items-center justify-center z-20 relative border border-spooky-rust/30">
+          <div class="w-full h-1 bg-spooky-charcoalDeep rounded-full shadow-inner"></div>
+        </div>
+
+        <!-- 吐纸滑道与舞台 -->
+        <div class="w-full h-[370px] overflow-hidden relative flex justify-center pt-1">
+          <div id="dispensed-card-stage" class="relative z-10 flex justify-center">
+            <div id="dispensed-preview-container" class="rounded-2xl overflow-hidden shadow-card-pitch bg-spooky-charcoal p-1 flex items-center justify-center border border-spooky-rust/20">
+              <!-- 动态装入合成完成的照片 -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部提示 -->
+      <div class="mt-3 text-center">
+        <p class="text-[11px] font-sans font-medium text-spooky-cream/80 flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-hand-holding-heart text-spooky-orange"></i>
+          <span id="dispenser-take-hint">相片已滑入取纸槽，正在自动保存至本地...</span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 隐藏的文件选择器 -->
+  <input id="input-batch-files" type="file" accept="image/*" multiple class="hidden">
+
+  <!-- 自定义吐司提示组件 -->
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-spooky-charcoal text-spooky-cream px-4 py-2.5 rounded-2xl shadow-card-pitch text-xs sm:text-sm font-medium transition-all duration-300 opacity-0 pointer-events-none transform translate-y-2 flex items-center gap-2 border border-spooky-orange/30">
+    <i id="toast-icon" class="fa-solid fa-circle-check text-spooky-orange"></i>
+    <span id="toast-msg">操作成功</span>
+  </div>
+
+  <script>
+    const i18nData = {
+      zh: {
+        subtitle: "By HiSpooky",
+        btn_tear: "撕开相纸",
+        btn_rejoin: "重新合拢",
+        btn_batch: "导入4张照片",
+        btn_clear: "清空",
+        btn_export: "导出相片",
+        tip_gesture: "左侧四格可拖拽平移，右侧为同尺寸万圣收藏书签",
+        label_sheet_mode: "双联纸张状态",
+        desc_sheet_mode: "模拟真机打印联排，可随时撕开/合拢",
+        label_select_slot: "选择要调节的照片格",
+        slot_num_1: "第 1 格",
+        slot_num_2: "第 2 格",
+        slot_num_3: "第 3 格",
+        slot_num_4: "第 4 格",
+        slot_prompt_1: "点击上传第 1 格",
+        slot_prompt_2: "点击上传第 2 格",
+        slot_prompt_3: "点击上传第 3 格",
+        slot_prompt_4: "点击上传第 4 格",
+        action_replace: "替换",
+        btn_delete_single: "删除",
+        label_zoom: "大小缩放",
+        label_rotate: "角度微调",
+        btn_flip: "水平翻转",
+        btn_fit_full: "适应全图",
+        btn_reset: "居中复位",
+        label_filters: "万圣气氛滤镜",
+        filter_orig: "原图色彩",
+        filter_pumpkin: "南瓜暖阳",
+        filter_vampire: "血夜红影",
+        filter_noir: "哥特黑白",
+        filter_fog: "幽夜迷雾",
+        filter_ghoul: "鬼火荧绿",
+        label_creator: "制作",
+        label_artist: "相框绘制",
+        return_notice: '欢迎在 LOFTER 搜索 <a href="https://hispooky.lofter.com/" target="_blank" rel="noopener noreferrer" class="text-spooky-orange hover:text-spooky-cream font-semibold underline underline-offset-2 transition-colors inline-flex items-center gap-0.5">HiSpooky<i class="fa-solid fa-arrow-up-right-from-square text-[9px] ml-0.5"></i></a> 在相关动态下返图',
+        editing_slot_prefix: "正在编辑：第 ",
+        editing_slot_suffix: " 格照片",
+        badge_untorn: "● 连体版",
+        badge_torn: "已撕开独立联",
+        tear_divider_text: "易撕线",
+        toast_slot_loaded: "第 {n} 格照片已载入",
+        toast_slot_cleared: "已删除第 {n} 格照片",
+        toast_batch_loaded: "已成功载入 {n} 张照片！",
+        toast_cleared: "已清空所有照片",
+        toast_torn: "咔嚓！双联相纸已撕开为独立两联",
+        toast_rejoined: "相纸已重新拼合为整版双联",
+        toast_baking: "正在合成冲印级超清万圣相片...",
+        toast_exported: "万圣相片已成功导出并下载！",
+        dispenser_printing: "✦ 胶片冲印出纸中... ✦",
+        dispenser_printing_dual: "✦ 独立双卡冲印出纸中... ✦",
+        dispenser_done: "冲印完成！请取走你的万圣相片",
+        dispenser_done_dual: "冲印完成！请取走你的相片与书签",
+        dispenser_hint: "相片已滑入取纸槽，正在自动保存至本地...",
+        dispenser_hint_dual: "相片与书签双卡已滑入取纸槽，正在依次保存至本地...",
+        modal_title: "选择相片导出方式",
+        modal_desc: "为还原人生四格真实打印过程，本网页支持原版双联整幅输出，或撕开分为相片与书签两张独立高清图片。",
+        opt_full_sheet: "导出整版双联相纸",
+        opt_full_sheet_desc: "左侧照片 + 右侧书签，直接拼接",
+        opt_separated: "分开导出独立双卡",
+        opt_separated_desc: "自动裁切为两张等大卡片：一张相片与一张书签",
+        opt_photo_only: "仅导出左侧四格相片"
+      },
+      en: {
+        subtitle: "By HiSpooky",
+        btn_tear: "Tear Sheet",
+        btn_rejoin: "Rejoin Sheet",
+        btn_batch: "Import 4 Photos",
+        btn_clear: "Clear",
+        btn_export: "Export Cuts",
+        tip_gesture: "Drag freely inside frames to reposition, scroll to zoom in/out smoothly",
+        label_sheet_mode: "Twin Sheet Perforation",
+        desc_sheet_mode: "Simulates physical booth double prints. Tear or rejoin anytime.",
+        label_select_slot: "SELECT PHOTO SLOT",
+        slot_num_1: "Slot 1",
+        slot_num_2: "Slot 2",
+        slot_num_3: "Slot 3",
+        slot_num_4: "Slot 4",
+        slot_prompt_1: "Click to upload Slot 1",
+        slot_prompt_2: "Click to upload Slot 2",
+        slot_prompt_3: "Click to upload Slot 3",
+        slot_prompt_4: "Click to upload Slot 4",
+        action_replace: "Replace",
+        btn_delete_single: "Clear",
+        label_zoom: "Scale Zoom",
+        label_rotate: "Rotation",
+        btn_flip: "Flip H",
+        btn_fit_full: "Fit Frame",
+        btn_reset: "Reset Pos",
+        label_filters: "SPOOKY FILTERS",
+        filter_orig: "Original",
+        filter_pumpkin: "Pumpkin Glow",
+        filter_vampire: "Vampire Crimson",
+        filter_noir: "Gothic Noir",
+        filter_fog: "Midnight Fog",
+        filter_ghoul: "Ghostly Green",
+        label_creator: "Creator",
+        label_artist: "Frame Art",
+        return_notice: 'Feel free to share your cuts on AO3 or social media and mention <a href="https://archiveofourown.org/users/HiSpooky" target="_blank" rel="noopener noreferrer" class="text-spooky-orange hover:text-spooky-cream font-semibold underline underline-offset-2 transition-colors inline-flex items-center gap-0.5">HiSpooky<i class="fa-solid fa-arrow-up-right-from-square text-[9px] ml-0.5"></i></a>!',
+        editing_slot_prefix: "Editing: Photo Slot #",
+        editing_slot_suffix: "",
+        badge_untorn: "● DOUBLE SHEET",
+        badge_torn: "TORN CUTS",
+        tear_divider_text: "TEAR HERE",
+        toast_slot_loaded: "Photo Slot #{n} loaded",
+        toast_slot_cleared: "Photo Slot #{n} cleared",
+        toast_batch_loaded: "Successfully loaded {n} photos!",
+        toast_cleared: "All photos cleared",
+        toast_torn: "Rip! Double sheet separated into two individual strips",
+        toast_rejoined: "Twin sheet rejoined as one uncut print",
+        toast_baking: "Baking high-resolution spooky photo strip...",
+        toast_exported: "Spooky strip exported and downloaded!",
+        dispenser_printing: "✦ PRINTING PHOTO STRIP... ✦",
+        dispenser_printing_dual: "✦ PRINTING DUAL CUTS... ✦",
+        dispenser_done: "FRESHLY PRINTED! TAKE YOUR CUTS",
+        dispenser_done_dual: "FRESHLY PRINTED! TAKE BOTH CARDS",
+        dispenser_hint: "Cuts dispensed into the tray! Downloading to your device...",
+        dispenser_hint_dual: "Both cuts dispensed into the tray! Downloading one by one...",
+        modal_title: "Choose Export Mode",
+        modal_desc: "To faithfully recreate the authentic photo booth print experience, this web app supports original double-sheet full print, or torn cuts as two separate HD cards.",
+        opt_full_sheet: "Export Full Double Sheet",
+        opt_full_sheet_desc: "Left photos + right bookmark, joined edge to edge",
+        opt_separated: "Export Separated Strips",
+        opt_separated_desc: "Separated into two equal cards: 1 photo & 1 bookmark",
+        opt_photo_only: "Export Left Photo Strip Only"
+      }
+    };
+
+    let currentLang = 'zh';
+
+    const state = {
+      isTorn: false,
+      activeSlot: 0,
+      slots: [
+        { img: null, x: 0, y: 0, scale: 1, rotate: 0, flip: false, filter: 'filter-original' },
+        { img: null, x: 0, y: 0, scale: 1, rotate: 0, flip: false, filter: 'filter-original' },
+        { img: null, x: 0, y: 0, scale: 1, rotate: 0, flip: false, filter: 'filter-original' },
+        { img: null, x: 0, y: 0, scale: 1, rotate: 0, flip: false, filter: 'filter-original' },
+      ]
+    };
+
+    // DOM 元素引用
+    const twinSheet = document.getElementById('twin-sheet');
+    const sheetLeft = document.getElementById('sheet-left');
+    const frameImageSrc = './spookyboothL.png';
+    const bookmarkImageSrc = './spookyboothR.jpg';
+    const frameImage = new Image();
+    frameImage.src = frameImageSrc;
+    const frameImageReady = new Promise(resolve => {
+      if (frameImage.complete && frameImage.naturalWidth > 0) return resolve(frameImage);
+      frameImage.onload = () => resolve(frameImage);
+      frameImage.onerror = () => resolve(null);
+    });
+    const bookmarkImage = new Image();
+    bookmarkImage.src = bookmarkImageSrc;
+    const bookmarkImageReady = new Promise(resolve => {
+      if (bookmarkImage.complete && bookmarkImage.naturalWidth > 0) return resolve(bookmarkImage);
+      bookmarkImage.onload = () => resolve(bookmarkImage);
+      bookmarkImage.onerror = () => resolve(null);
+    });
+    const sheetRight = document.getElementById('sheet-right');
+    const tearDivider = document.getElementById('tear-divider');
+    const slotElements = document.querySelectorAll('.photo-slot');
+    const sliderZoom = document.getElementById('slider-zoom');
+    const sliderRotate = document.getElementById('slider-rotate');
+    const valZoom = document.getElementById('val-zoom');
+    const valRotate = document.getElementById('val-rotate');
+    const activeSlotName = document.getElementById('active-slot-name');
+
+    // 动态双色轨道同步：滑过区域为鲜南瓜橘橙 (#FC7E2F)，未滑过区域为深炭暗底 (#2C2724)
+    function updateSliderProgress(slider) {
+      if (!slider) return;
+      const min = parseFloat(slider.min) || 0;
+      const max = parseFloat(slider.max) || 100;
+      const val = parseFloat(slider.value) || 0;
+      const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
+      slider.style.background = `linear-gradient(to right, #FC7E2F 0%, #FC7E2F ${pct}%, #2C2724 ${pct}%, #2C2724 100%)`;
+    }
+
+    function updateSheetBadge() {
+      const dict = i18nData[currentLang];
+      const statusBadge = document.getElementById('status-sheet-state');
+      if (!statusBadge) return;
+      if (state.isTorn) {
+        statusBadge.textContent = dict.badge_torn;
+        statusBadge.className = 'text-spooky-cream font-bold';
+      } else {
+        statusBadge.textContent = dict.badge_untorn;
+        statusBadge.className = 'text-spooky-orange font-bold';
+      }
+    }
+
+    function setTornState(torn) {
+      state.isTorn = torn;
+      const dict = i18nData[currentLang];
+      const tearIcon = document.getElementById('tear-icon');
+      const tearLabel = document.getElementById('tear-label');
+      const labelTearSidebar = document.getElementById('label-tear-sidebar');
+
+      if (state.isTorn) {
+        twinSheet.classList.remove('sheet-joined');
+        twinSheet.classList.add('sheet-torn');
+        tearIcon.className = 'fa-solid fa-link text-spooky-cream';
+        tearLabel.textContent = dict.btn_rejoin;
+        labelTearSidebar.textContent = dict.btn_rejoin;
+        updateSheetBadge();
+        showToast(dict.toast_torn, 'warn');
+      } else {
+        twinSheet.classList.remove('sheet-torn');
+        twinSheet.classList.add('sheet-joined');
+        tearIcon.className = 'fa-solid fa-scissors text-spooky-orange';
+        tearLabel.textContent = dict.btn_tear;
+        labelTearSidebar.textContent = dict.btn_tear;
+        updateSheetBadge();
+        showToast(dict.toast_rejoined, 'info');
+      }
+    }
+
+    document.getElementById('btn-toggle-tear').addEventListener('click', () => setTornState(!state.isTorn));
+    document.getElementById('btn-tear-sidebar').addEventListener('click', () => setTornState(!state.isTorn));
+    tearDivider.addEventListener('click', () => setTornState(!state.isTorn));
+
+    const statusSheetBtn = document.getElementById('status-sheet-state-btn');
+    if (statusSheetBtn) {
+      statusSheetBtn.addEventListener('click', () => setTornState(!state.isTorn));
+    }
+
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-msg');
+      const toastIcon = document.getElementById('toast-icon');
+
+      toastMsg.textContent = message;
+      if (type === 'success') {
+        toastIcon.className = 'fa-solid fa-circle-check text-spooky-orange';
+      } else if (type === 'warn') {
+        toastIcon.className = 'fa-solid fa-scissors text-spooky-cream';
+      } else {
+        toastIcon.className = 'fa-solid fa-circle-info text-spooky-cream';
+      }
+
+      toast.classList.remove('opacity-0', 'translate-y-2', 'pointer-events-none');
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2', 'pointer-events-none');
+      }, 2400);
+    }
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      const dict = i18nData[lang];
+      document.getElementById('lang-label').textContent = lang === 'zh' ? 'EN' : '中文';
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key]) {
+          el.textContent = dict[key];
+        }
+      });
+
+      const returnNoteEl = document.getElementById('credit-return-note');
+      if (returnNoteEl) returnNoteEl.innerHTML = dict.return_notice;
+
+      const modalReturnNoteEl = document.getElementById('modal-return-note');
+      if (modalReturnNoteEl) modalReturnNoteEl.innerHTML = dict.return_notice;
+
+      const creatorLinkEl = document.getElementById('creator-link');
+      if (creatorLinkEl) {
+        creatorLinkEl.href = lang === 'zh' ? 'https://hispooky.lofter.com/' : 'https://archiveofourown.org/users/HiSpooky';
+      }
+
+      const tearDividerText = document.getElementById('tear-divider-text');
+      if (tearDividerText) {
+        tearDividerText.textContent = dict.tear_divider_text;
+      }
+
+      updateSheetBadge();
+
+      activeSlotName.textContent = `${dict.editing_slot_prefix}${state.activeSlot + 1}${dict.editing_slot_suffix}`;
+      document.getElementById('tear-label').textContent = state.isTorn ? dict.btn_rejoin : dict.btn_tear;
+      document.getElementById('label-tear-sidebar').textContent = state.isTorn ? dict.btn_rejoin : dict.btn_tear;
+    }
+
+    document.getElementById('btn-lang-toggle').addEventListener('click', () => {
+      setLanguage(currentLang === 'zh' ? 'en' : 'zh');
+    });
+
+    function updateSlotTransform(index) {
+      const slotData = state.slots[index];
+      const slotEl = slotElements[index];
+      const img = slotEl.querySelector('.slot-content img');
+      if (img) {
+        const flipTransform = slotData.flip ? 'scaleX(-1)' : '';
+        img.style.transform = `translate3d(${slotData.x}px, ${slotData.y}px, 0) scale(${slotData.scale}) rotate(${slotData.rotate}deg) ${flipTransform}`;
+      }
+    }
+
+    function applyNaturalImageSizing(img, slotEl) {
+      const slotWidth = slotEl.offsetWidth || 237;
+      const slotHeight = slotEl.offsetHeight || 178;
+      const naturalAspect = (img.naturalWidth || 1) / (img.naturalHeight || 1);
+      const slotAspect = slotWidth / slotHeight;
+
+      img.style.position = 'absolute';
+      img.style.maxWidth = 'none';
+      img.style.maxHeight = 'none';
+
+      if (naturalAspect > slotAspect) {
+        img.style.height = `${slotHeight}px`;
+        img.style.width = `${slotHeight * naturalAspect}px`;
+      } else {
+        img.style.width = `${slotWidth}px`;
+        img.style.height = `${slotWidth / naturalAspect}px`;
+      }
+    }
+
+    function updateSlotVisual(index) {
+      const slotData = state.slots[index];
+      const slotEl = slotElements[index];
+      const contentEl = slotEl.querySelector('.slot-content');
+
+      if (slotData.img) {
+        let img = contentEl.querySelector('img');
+        
+        if (!img || img.dataset.src !== slotData.img.src) {
+          contentEl.innerHTML = '';
+          img = document.createElement('img');
+          img.src = slotData.img.src;
+          img.dataset.src = slotData.img.src;
+          img.alt = `Slot ${index + 1}`;
+          img.className = `select-none will-change-transform ${slotData.filter}`;
+          img.draggable = false;
+          contentEl.appendChild(img);
+          applyNaturalImageSizing(img, slotEl);
+        } else {
+          img.className = `select-none will-change-transform ${slotData.filter}`;
+          applyNaturalImageSizing(img, slotEl);
+        }
+        
+        updateSlotTransform(index);
+      } else {
+        contentEl.innerHTML = '';
+      }
+
+      if (state.activeSlot === index) {
+        slotEl.classList.remove('slot-default-shadow');
+        slotEl.classList.add('slot-selected-shadow');
+      } else {
+        slotEl.classList.remove('slot-selected-shadow');
+        slotEl.classList.add('slot-default-shadow');
+      }
+    }
+
+    function clearSlot(index) {
+      if (!state.slots[index].img) return;
+      state.slots[index].img = null;
+      state.slots[index].x = 0;
+      state.slots[index].y = 0;
+      state.slots[index].scale = 1;
+      state.slots[index].rotate = 0;
+      state.slots[index].flip = false;
+      updateSlotVisual(index);
+      selectSlot(index, false);
+      const dict = i18nData[currentLang];
+      showToast(dict.toast_slot_cleared.replace('{n}', index + 1), 'info');
+    }
+
+    document.getElementById('btn-delete-active-slot').addEventListener('click', () => {
+      clearSlot(state.activeSlot);
+    });
+
+    document.querySelectorAll('.slot-hover-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const slotIdx = parseInt(btn.dataset.slotDel, 10);
+        clearSlot(slotIdx);
+      });
+    });
+
+    document.getElementById('btn-fit-photo').addEventListener('click', () => {
+      const active = state.slots[state.activeSlot];
+      if (!active.img) return;
+
+      const slotEl = slotElements[state.activeSlot];
+      const slotWidth = slotEl.offsetWidth || 237;
+      const slotHeight = slotEl.offsetHeight || 178;
+      const naturalAspect = (active.img.naturalWidth || 1) / (active.img.naturalHeight || 1);
+      const slotAspect = slotWidth / slotHeight;
+
+      if (naturalAspect > slotAspect) {
+        active.scale = parseFloat((slotAspect / naturalAspect).toFixed(2));
+      } else {
+        active.scale = parseFloat((naturalAspect / slotAspect).toFixed(2));
+      }
+
+      active.x = 0;
+      active.y = 0;
+      sliderZoom.value = active.scale;
+      valZoom.textContent = `${Math.round(active.scale * 100)}%`;
+      updateSlotTransform(state.activeSlot);
+      updateSliderProgress(sliderZoom);
+    });
+
+    sliderZoom.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      state.slots[state.activeSlot].scale = val;
+      valZoom.textContent = `${Math.round(val * 100)}%`;
+      updateSlotTransform(state.activeSlot);
+      updateSliderProgress(sliderZoom);
+    });
+
+    sliderRotate.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value, 10);
+      state.slots[state.activeSlot].rotate = val;
+      valRotate.textContent = `${val}°`;
+      updateSlotTransform(state.activeSlot);
+      updateSliderProgress(sliderRotate);
+    });
+
+    document.getElementById('btn-flip-photo').addEventListener('click', () => {
+      state.slots[state.activeSlot].flip = !state.slots[state.activeSlot].flip;
+      updateSlotTransform(state.activeSlot);
+    });
+
+    document.getElementById('btn-reset-transform').addEventListener('click', () => {
+      const slot = state.slots[state.activeSlot];
+      slot.x = 0;
+      slot.y = 0;
+      slot.scale = 1;
+      slot.rotate = 0;
+      sliderZoom.value = 1;
+      valZoom.textContent = '100%';
+      sliderRotate.value = 0;
+      valRotate.textContent = '0°';
+      updateSlotTransform(state.activeSlot);
+      updateSliderProgress(sliderZoom);
+      updateSliderProgress(sliderRotate);
+    });
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const filterName = btn.dataset.filter;
+        state.slots[state.activeSlot].filter = filterName;
+        document.querySelectorAll('.filter-btn').forEach(b => {
+          b.className = 'filter-btn p-2 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-spooky-cream/80 font-medium text-center shadow-sm transition-all border border-spooky-cream/10';
+        });
+        btn.className = 'filter-btn p-2 rounded-xl bg-spooky-orange text-spooky-charcoal font-bold text-center shadow-md transition-all';
+        updateSlotVisual(state.activeSlot);
+      });
+    });
+
+    document.querySelectorAll('.slot-select-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectSlot(parseInt(btn.dataset.slot, 10), true);
+      });
+    });
+
+    function selectSlot(index, shouldRerender = true) {
+      state.activeSlot = index;
+      document.querySelectorAll('.slot-select-btn').forEach((btn, i) => {
+        if (i === index) {
+          btn.className = 'slot-select-btn py-2 px-1 rounded-xl bg-spooky-orange text-spooky-charcoal font-bold text-xs shadow-md transition-all transform scale-[1.02]';
+        } else {
+          btn.className = 'slot-select-btn py-2 px-1 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-spooky-cream/70 font-semibold text-xs shadow-sm transition-all';
+        }
+      });
+
+      const active = state.slots[index];
+      const dict = i18nData[currentLang];
+      activeSlotName.textContent = `${dict.editing_slot_prefix}${index + 1}${dict.editing_slot_suffix}`;
+      sliderZoom.value = active.scale;
+      valZoom.textContent = `${Math.round(active.scale * 100)}%`;
+      sliderRotate.value = active.rotate;
+      valRotate.textContent = `${active.rotate}°`;
+      updateSliderProgress(sliderZoom);
+      updateSliderProgress(sliderRotate);
+
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        if (btn.dataset.filter === active.filter) {
+          btn.className = 'filter-btn p-2 rounded-xl bg-spooky-orange text-spooky-charcoal font-bold text-center shadow-md transition-all';
+        } else {
+          btn.className = 'filter-btn p-2 rounded-xl bg-spooky-charcoalDeep hover:bg-spooky-charcoal text-spooky-cream/80 font-medium text-center shadow-sm transition-all border border-spooky-cream/10';
+        }
+      });
+
+      slotElements.forEach((el, i) => {
+        if (i === index) {
+          el.classList.remove('slot-default-shadow');
+          el.classList.add('slot-selected-shadow');
+        } else {
+          el.classList.remove('slot-selected-shadow');
+          el.classList.add('slot-default-shadow');
+        }
+      });
+
+      if (shouldRerender) {
+        updateSlotVisual(index);
+      }
+    }
+
+    function setupDragAndZoom() {
+      slotElements.forEach((slotEl, idx) => {
+        let isPointerDown = false;
+        let startX = 0;
+        let startY = 0;
+        let initialX = 0;
+        let initialY = 0;
+        let hasMoved = false;
+        let activeScale = 1;
+
+        // 双指触控跟踪数据结构
+        let slotPointers = new Map();
+        let initialPinchDist = 0;
+        let initialScale = 1;
+        let initialSlotPos = { x: 0, y: 0 };
+        let initialPinchCenter = { x: 0, y: 0 };
+
+        const getWrapperScale = () => {
+          const rect = sheetLeft.getBoundingClientRect();
+          return rect.width / (sheetLeft.offsetWidth || 1);
+        };
+
+        const onSlotWindowPointerDown = (e) => {
+          if (!isPointerDown) return;
+          if (!slotPointers.has(e.pointerId)) {
+            slotPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (slotPointers.size >= 2) {
+              hasMoved = true;
+              const pts = Array.from(slotPointers.values());
+              initialPinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+              initialScale = state.slots[idx].scale;
+              initialSlotPos = { x: state.slots[idx].x, y: state.slots[idx].y };
+              initialPinchCenter = {
+                x: (pts[0].x + pts[1].x) / 2,
+                y: (pts[0].y + pts[1].y) / 2
+              };
+            }
+          }
+        };
+
+        const onSlotWindowPointerMove = (e) => {
+          if (!isPointerDown) return;
+          if (slotPointers.has(e.pointerId)) {
+            slotPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          }
+
+          // 双指捏合缩放照片及同步中心平移
+          if (slotPointers.size >= 2) {
+            const pts = Array.from(slotPointers.values());
+            const currentDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+            if (initialPinchDist > 5) {
+              const factor = currentDist / initialPinchDist;
+              let newScale = Math.min(Math.max(0.2, initialScale * factor), 3.5);
+              newScale = parseFloat(newScale.toFixed(2));
+              state.slots[idx].scale = newScale;
+
+              if (state.activeSlot === idx) {
+                sliderZoom.value = newScale;
+                valZoom.textContent = `${Math.round(newScale * 100)}%`;
+                updateSliderProgress(sliderZoom);
+              }
+            }
+
+            const currentCenter = {
+              x: (pts[0].x + pts[1].x) / 2,
+              y: (pts[0].y + pts[1].y) / 2
+            };
+            const dx = (currentCenter.x - initialPinchCenter.x) / activeScale;
+            const dy = (currentCenter.y - initialPinchCenter.y) / activeScale;
+            state.slots[idx].x = Math.round(initialSlotPos.x + dx);
+            state.slots[idx].y = Math.round(initialSlotPos.y + dy);
+            updateSlotTransform(idx);
+            return;
+          }
+
+          // 单指拖拽位移
+          if (slotPointers.size === 1) {
+            const dx = (e.clientX - startX) / activeScale;
+            const dy = (e.clientY - startY) / activeScale;
+
+            if (Math.hypot(dx, dy) > 2) {
+              hasMoved = true;
+            }
+
+            state.slots[idx].x = Math.round(initialX + dx);
+            state.slots[idx].y = Math.round(initialY + dy);
+            updateSlotTransform(idx);
+          }
+        };
+
+        const onSlotWindowPointerUp = (e) => {
+          slotPointers.delete(e.pointerId);
+          if (slotPointers.size === 0) {
+            isPointerDown = false;
+            window.removeEventListener('pointerdown', onSlotWindowPointerDown);
+            window.removeEventListener('pointermove', onSlotWindowPointerMove);
+            window.removeEventListener('pointerup', onSlotWindowPointerUp);
+            window.removeEventListener('pointercancel', onSlotWindowPointerUp);
+            if (!hasMoved) {
+              selectSlot(idx, true);
+            }
+          } else if (slotPointers.size === 1) {
+            // 双指变为单指时顺畅衔接，重置起始位置
+            const rem = Array.from(slotPointers.values())[0];
+            startX = rem.x;
+            startY = rem.y;
+            initialX = state.slots[idx].x;
+            initialY = state.slots[idx].y;
+          }
+        };
+
+        slotEl.addEventListener('pointerdown', (e) => {
+          if (e.target.closest('.slot-hover-delete')) return;
+          if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+          selectSlot(idx, false);
+          if (!state.slots[idx].img) return;
+
+          isPointerDown = true;
+          hasMoved = false;
+          startX = e.clientX;
+          startY = e.clientY;
+          initialX = state.slots[idx].x;
+          initialY = state.slots[idx].y;
+          activeScale = getWrapperScale() || 1;
+
+          slotPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+          window.addEventListener('pointerdown', onSlotWindowPointerDown, { passive: true });
+          window.addEventListener('pointermove', onSlotWindowPointerMove, { passive: true });
+          window.addEventListener('pointerup', onSlotWindowPointerUp, { passive: true });
+          window.addEventListener('pointercancel', onSlotWindowPointerUp, { passive: true });
+
+          e.preventDefault();
+        });
+
+        slotEl.addEventListener('click', (e) => {
+          if (e.target.closest('.slot-hover-delete')) return;
+          if (!state.slots[idx].img && !hasMoved) {
+            selectSlot(idx, false);
+            document.getElementById('input-single-slot-photo').click();
+          }
+        });
+
+        slotEl.addEventListener('wheel', (e) => {
+          if (!state.slots[idx].img) return;
+          e.preventDefault();
+          selectSlot(idx, false);
+
+          const delta = e.deltaY < 0 ? 0.08 : -0.08;
+          let newScale = Math.min(Math.max(0.2, state.slots[idx].scale + delta), 3.5);
+          state.slots[idx].scale = parseFloat(newScale.toFixed(2));
+          sliderZoom.value = state.slots[idx].scale;
+          valZoom.textContent = `${Math.round(state.slots[idx].scale * 100)}%`;
+          updateSlotTransform(idx);
+          updateSliderProgress(sliderZoom);
+        }, { passive: false });
+      });
+    }
+
+    function loadImageFromFile(file, callback) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => callback(img);
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    document.getElementById('input-single-slot-photo').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      loadImageFromFile(file, (img) => {
+        state.slots[state.activeSlot].img = img;
+        state.slots[state.activeSlot].x = 0;
+        state.slots[state.activeSlot].y = 0;
+        state.slots[state.activeSlot].scale = 1;
+        state.slots[state.activeSlot].rotate = 0;
+        selectSlot(state.activeSlot, true);
+        const dict = i18nData[currentLang];
+        showToast(dict.toast_slot_loaded.replace('{n}', state.activeSlot + 1));
+      });
+      e.target.value = '';
+    });
+
+    document.getElementById('btn-batch-upload').addEventListener('click', () => {
+      document.getElementById('input-batch-files').click();
+    });
+
+    document.getElementById('input-batch-files').addEventListener('change', (e) => {
+      const files = Array.from(e.target.files).slice(0, 4);
+      if (files.length === 0) return;
+
+      let loadedCount = 0;
+      files.forEach((file, idx) => {
+        loadImageFromFile(file, (img) => {
+          state.slots[idx].img = img;
+          state.slots[idx].x = 0;
+          state.slots[idx].y = 0;
+          state.slots[idx].scale = 1;
+          state.slots[idx].rotate = 0;
+          loadedCount++;
+          if (loadedCount === files.length) {
+            for (let i = 0; i < 4; i++) {
+              updateSlotVisual(i);
+            }
+            selectSlot(state.activeSlot, true);
+            const dict = i18nData[currentLang];
+            showToast(dict.toast_batch_loaded.replace('{n}', loadedCount));
+          }
+        });
+      });
+      e.target.value = '';
+    });
+
+    document.getElementById('btn-clear-all').addEventListener('click', () => {
+      state.slots.forEach(s => {
+        s.img = null;
+        s.x = 0;
+        s.y = 0;
+        s.scale = 1;
+        s.rotate = 0;
+        s.flip = false;
+      });
+      for (let i = 0; i < 4; i++) {
+        updateSlotVisual(i);
+      }
+      selectSlot(state.activeSlot, true);
+      const dict = i18nData[currentLang];
+      showToast(dict.toast_cleared, 'info');
+    });
+
+    function applyFilterToContext(ctx, filterClass) {
+      switch (filterClass) {
+        case 'filter-noir':
+          ctx.filter = 'grayscale(100%) contrast(145%) brightness(92%)';
+          break;
+        case 'filter-pumpkin':
+          ctx.filter = 'sepia(35%) saturate(140%) contrast(110%) hue-rotate(-12deg)';
+          break;
+        case 'filter-vampire':
+          ctx.filter = 'contrast(130%) saturate(135%) brightness(90%)';
+          break;
+        case 'filter-fog':
+          ctx.filter = 'contrast(90%) brightness(105%) saturate(70%) hue-rotate(180deg)';
+          break;
+        case 'filter-ghoul':
+          ctx.filter = 'hue-rotate(85deg) saturate(130%) contrast(115%) brightness(96%)';
+          break;
+        default:
+          ctx.filter = 'none';
+          break;
+      }
+    }
+
+    // ================= 导出模态框与 Canvas 渲染引擎 =================
+    const exportModal = document.getElementById('export-modal');
+    const btnExportMenu = document.getElementById('btn-export-menu');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+
+    btnExportMenu.addEventListener('click', () => {
+      exportModal.classList.remove('opacity-0', 'pointer-events-none');
+      exportModal.querySelector('div').classList.remove('scale-95');
+    });
+
+    btnCloseModal.addEventListener('click', () => {
+      exportModal.classList.add('opacity-0', 'pointer-events-none');
+      exportModal.querySelector('div').classList.add('scale-95');
+    });
+
+    exportModal.addEventListener('click', (e) => {
+      if (e.target === exportModal) btnCloseModal.click();
+    });
+
+    function renderPhotoStripCanvas(exportScale = 4) {
+      const leftRect = sheetLeft.getBoundingClientRect();
+      const canvas = document.createElement('canvas');
+      canvas.width = leftRect.width * exportScale;
+      canvas.height = leftRect.height * exportScale;
+      const ctx = canvas.getContext('2d');
+
+      // 底色：#403B37 (深炭暖褐)
+      ctx.fillStyle = '#403B37';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < 4; i++) {
+        const slot = state.slots[i];
+        const slotEl = slotElements[i];
+        const slotRect = slotEl.getBoundingClientRect();
+
+        const slotCanvasX = (slotRect.left - leftRect.left) * exportScale;
+        const slotCanvasY = (slotRect.top - leftRect.top) * exportScale;
+        const slotCanvasW = slotRect.width * exportScale;
+        const slotCanvasH = slotRect.height * exportScale;
+        const radius = 8 * exportScale;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(slotCanvasX, slotCanvasY, slotCanvasW, slotCanvasH, radius);
+        ctx.clip();
+
+        // 槽底色：#2C2724
+        ctx.fillStyle = '#2C2724';
+        ctx.fillRect(slotCanvasX, slotCanvasY, slotCanvasW, slotCanvasH);
+
+        if (slot.img) {
+          applyFilterToContext(ctx, slot.filter);
+          ctx.save();
+          const centerX = slotCanvasX + slotCanvasW / 2 + slot.x * exportScale;
+          const centerY = slotCanvasY + slotCanvasH / 2 + slot.y * exportScale;
+          ctx.translate(centerX, centerY);
+          ctx.rotate((slot.rotate * Math.PI) / 180);
+          if (slot.flip) ctx.scale(-1, 1);
+          ctx.scale(slot.scale, slot.scale);
+
+          const naturalAspect = (slot.img.naturalWidth || slot.img.width) / (slot.img.naturalHeight || slot.img.height);
+          const slotAspect = slotCanvasW / slotCanvasH;
+          let baseW, baseH;
+          if (naturalAspect > slotAspect) {
+            baseH = slotCanvasH;
+            baseW = slotCanvasH * naturalAspect;
+          } else {
+            baseW = slotCanvasW;
+            baseH = slotCanvasW / naturalAspect;
+          }
+
+          ctx.drawImage(slot.img, -baseW / 2, -baseH / 2, baseW, baseH);
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+
+      // PNG 相框前景：按 DOM 相纸尺寸映射，并随 exportScale 超采样绘制。
+      if (frameImage.complete && frameImage.naturalWidth > 0) {
+        ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
+      }
+
+      return canvas;
+    }
+
+    function renderBookmarkCanvas(exportScale = 4) {
+      const rightRect = sheetRight.getBoundingClientRect();
+      const canvas = document.createElement('canvas');
+      canvas.width = rightRect.width * exportScale;
+      canvas.height = rightRect.height * exportScale;
+      const ctx = canvas.getContext('2d');
+
+      // 先铺底色，再按右联相纸尺寸绘制裁切后的书签插画。
+      ctx.fillStyle = '#403B37';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (bookmarkImage.complete && bookmarkImage.naturalWidth > 0) {
+        ctx.drawImage(bookmarkImage, 0, 0, canvas.width, canvas.height);
+      }
+
+      return canvas;
+    }
+
+    function downloadDataUrl(dataUrl, filename) {
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = dataUrl;
+      link.click();
+    }
+
+    const dispenserOverlay = document.getElementById('dispenser-overlay');
+    const dispensedPreviewContainer = document.getElementById('dispensed-preview-container');
+    const dispensedCardStage = document.getElementById('dispensed-card-stage');
+    const btnCloseDispenser = document.getElementById('btn-close-dispenser');
+    if (btnCloseDispenser) {
+      btnCloseDispenser.addEventListener('click', () => {
+        if (dispenserOverlay) dispenserOverlay.classList.add('opacity-0', 'pointer-events-none');
+      });
+    }
+
+    function playPrinterSound() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const actx = new AudioCtx();
+
+        const osc = actx.createOscillator();
+        const gain = actx.createGain();
+        const filter = actx.createBiquadFilter();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(140, actx.currentTime);
+        osc.frequency.linearRampToValueAtTime(80, actx.currentTime + 1.2);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, actx.currentTime);
+
+        gain.gain.setValueAtTime(0.04, actx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.06, actx.currentTime + 0.6);
+        gain.gain.linearRampToValueAtTime(0.001, actx.currentTime + 1.3);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(actx.destination);
+
+        osc.start();
+        osc.stop(actx.currentTime + 1.3);
+      } catch (e) {}
+    }
+
+    function triggerDispenserExperience(previewData, onComplete) {
+      const isDual = Array.isArray(previewData);
+      const dict = i18nData[currentLang];
+      if (!dispenserOverlay || !dispensedPreviewContainer || !dispensedCardStage) {
+        if (onComplete) onComplete();
+        showToast(dict.toast_exported, 'success');
+        return;
+      }
+
+      dispensedPreviewContainer.innerHTML = '';
+
+      if (isDual) {
+        dispensedPreviewContainer.className = 'flex items-center justify-center gap-3 sm:gap-4 p-0 bg-transparent border-0 shadow-none';
+
+        const cardLeft = document.createElement('div');
+        cardLeft.className = 'rounded-2xl overflow-hidden shadow-card-pitch bg-spooky-charcoal p-1 transform -rotate-2 -translate-x-1 transition-transform border border-spooky-rust/30';
+        const imgLeft = document.createElement('img');
+        imgLeft.src = previewData[0];
+        imgLeft.className = 'max-h-[330px] w-auto object-contain block shadow-inner';
+        cardLeft.appendChild(imgLeft);
+
+        const cardRight = document.createElement('div');
+        cardRight.className = 'rounded-2xl overflow-hidden shadow-card-pitch bg-spooky-charcoal p-1 transform rotate-2 translate-x-1 transition-transform border border-spooky-rust/30';
+        const imgRight = document.createElement('img');
+        imgRight.src = previewData[1];
+        imgRight.className = 'max-h-[330px] w-auto object-contain block shadow-inner';
+        cardRight.appendChild(imgRight);
+
+        dispensedPreviewContainer.appendChild(cardLeft);
+        dispensedPreviewContainer.appendChild(cardRight);
+      } else {
+        dispensedPreviewContainer.className = 'rounded-2xl overflow-hidden shadow-card-pitch bg-spooky-charcoal p-1 flex items-center justify-center border border-spooky-rust/30';
+        const img = document.createElement('img');
+        img.src = previewData;
+        img.className = 'max-h-[340px] w-auto object-contain block shadow-inner';
+        dispensedPreviewContainer.appendChild(img);
+      }
+
+      dispensedCardStage.classList.remove('anim-dispense');
+      void dispensedCardStage.offsetWidth;
+      dispensedCardStage.classList.add('anim-dispense');
+
+      const statusText = document.getElementById('dispenser-status-text');
+      const hintText = document.getElementById('dispenser-take-hint');
+
+      if (statusText) {
+        statusText.textContent = isDual ? (dict.dispenser_printing_dual || dict.dispenser_printing) : dict.dispenser_printing;
+      }
+      if (hintText) {
+        hintText.textContent = isDual ? (dict.dispenser_hint_dual || dict.dispenser_hint) : dict.dispenser_hint;
+      }
+
+      dispenserOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      playPrinterSound();
+
+      setTimeout(() => {
+        if (statusText) {
+          statusText.textContent = isDual ? (dict.dispenser_done_dual || dict.dispenser_done) : dict.dispenser_done;
+        }
+        if (onComplete) onComplete();
+        showToast(dict.toast_exported, 'success');
+
+        setTimeout(() => {
+          dispenserOverlay.classList.add('opacity-0', 'pointer-events-none');
+        }, 3000);
+      }, 1500);
+    }
+
+    document.getElementById('btn-export-combined').addEventListener('click', () => {
+      btnCloseModal.click();
+      showToast(i18nData[currentLang].toast_baking, 'info');
+
+      setTimeout(async () => {
+        await Promise.all([frameImageReady, bookmarkImageReady]);
+        const exportScale = 4;
+        const photoCanvas = renderPhotoStripCanvas(exportScale);
+        const bookmarkCanvas = renderBookmarkCanvas(exportScale);
+        const fullCanvas = document.createElement('canvas');
+        fullCanvas.width = photoCanvas.width + bookmarkCanvas.width;
+        fullCanvas.height = photoCanvas.height;
+        const ctx = fullCanvas.getContext('2d');
+
+        // 底色 #403B37
+        ctx.fillStyle = '#403B37';
+        ctx.fillRect(0, 0, fullCanvas.width, fullCanvas.height);
+
+        ctx.drawImage(photoCanvas, 0, 0);
+        ctx.drawImage(bookmarkCanvas, photoCanvas.width, 0);
+
+        const fullDataUrl = fullCanvas.toDataURL('image/png', 0.96);
+
+        triggerDispenserExperience(fullDataUrl, () => {
+          downloadDataUrl(fullDataUrl, `SpookyBooth_FullDoubleSheet_${Date.now()}.png`);
+        });
+      }, 120);
+    });
+
+    document.getElementById('btn-export-split').addEventListener('click', () => {
+      btnCloseModal.click();
+      showToast(i18nData[currentLang].toast_baking, 'info');
+
+      setTimeout(async () => {
+        await Promise.all([frameImageReady, bookmarkImageReady]);
+        const exportScale = 4;
+        // The split files render each card independently, so the tear divider is omitted.
+        const photoCanvas = renderPhotoStripCanvas(exportScale);
+        const bookmarkCanvas = renderBookmarkCanvas(exportScale);
+
+        const photoDataUrl = photoCanvas.toDataURL('image/png', 0.96);
+        const bookmarkDataUrl = bookmarkCanvas.toDataURL('image/png', 0.96);
+
+        triggerDispenserExperience([photoDataUrl, bookmarkDataUrl], () => {
+          downloadDataUrl(photoDataUrl, `SpookyBooth_1_PhotoStrip_${Date.now()}.png`);
+
+          setTimeout(() => {
+            downloadDataUrl(bookmarkDataUrl, `SpookyBooth_2_Bookmark_${Date.now()}.png`);
+          }, 400);
+        });
+      }, 120);
+    });
+
+    document.getElementById('btn-export-left-only').addEventListener('click', () => {
+      btnCloseModal.click();
+      showToast(i18nData[currentLang].toast_baking, 'info');
+      setTimeout(async () => {
+        await frameImageReady;
+        const photoCanvas = renderPhotoStripCanvas(4);
+        const photoDataUrl = photoCanvas.toDataURL('image/png', 0.96);
+
+        triggerDispenserExperience(photoDataUrl, () => {
+          downloadDataUrl(photoDataUrl, `SpookyBooth_PhotoStrip_${Date.now()}.png`);
+        });
+      }, 120);
+    });
+
+    function autoScaleViewport() {
+      const wrapper = document.getElementById('photostrip-wrapper');
+      const twinSheetEl = document.getElementById('twin-sheet');
+      if (!wrapper || !twinSheetEl) return;
+
+      const container = wrapper.parentElement;
+      if (!container) return;
+
+      const isMobile = window.innerWidth < 640;
+
+      // 精确读取容器可用空间
+      const containerW = container.clientWidth || window.innerWidth;
+      const sectionEl = wrapper.closest('section');
+      const availableH = (sectionEl ? sectionEl.clientHeight : 600) - (isMobile ? 65 : 60);
+
+      const baseW = 546; // 265 + 16 + 265 固定基准宽度
+      const baseH = 850; // 固定基准高度
+
+      if (containerW <= 0 || availableH <= 0) return;
+
+      // 移动端安全宽度边界（扣除 16px 边距）
+      const safeW = containerW - (isMobile ? 16 : 32);
+      const scaleX = safeW / baseW;
+      const scaleY = availableH / baseH;
+      // 移动端纵向可自然滚动，优先根据屏幕安全宽度等比缩放；桌面端同时受宽高限制
+      let fitScale = isMobile ? Math.min(scaleX, 0.95) : Math.min(scaleX, scaleY, 1);
+
+      fitScale = Math.max(fitScale, 0.25);
+      fitScale = parseFloat(fitScale.toFixed(3));
+
+      wrapper.style.transform = `scale(${fitScale})`;
+
+      if (isMobile) {
+        wrapper.style.transformOrigin = 'top center';
+        
+        // 核心修复：留出 24px 的安全底边距，防止负 margin 导致相框底部被下方控制面板遮挡
+        const safeBottomGap = 24;
+        const heightReduction = baseH * (1 - fitScale);
+        const effectiveReduction = Math.max(0, heightReduction - safeBottomGap);
+        wrapper.style.marginBottom = `-${Math.round(effectiveReduction)}px`;
+
+        const widthReduction = baseW * (1 - fitScale);
+        const halfWidthReduction = Math.round(widthReduction / 2);
+        wrapper.style.marginLeft = `-${halfWidthReduction}px`;
+        wrapper.style.marginRight = `-${halfWidthReduction}px`;
+      } else {
+        wrapper.style.transformOrigin = 'center center';
+        wrapper.style.marginBottom = '';
+        wrapper.style.marginLeft = '';
+        wrapper.style.marginRight = '';
+      }
+    }
+
+    window.addEventListener('resize', autoScaleViewport);
+
+    window.addEventListener('DOMContentLoaded', () => {
+      console.info('夜班冲印日志：今晚的底片多了一格。\nNight shift log: One extra frame appeared on tonight’s film.');
+      setupDragAndZoom();
+      selectSlot(0);
+      setLanguage('zh');
+      autoScaleViewport();
+      updateSliderProgress(sliderZoom);
+      updateSliderProgress(sliderRotate);
+      setTimeout(autoScaleViewport, 100);
+    });
+  </script>
+</body>
+</html>
