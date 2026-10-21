@@ -293,8 +293,8 @@
               </div>
               <input id="slider-zoom" type="range" min="0.2" max="3.5" step="0.01" value="1" class="w-full accent-spooky-orange bg-spooky-charcoal rounded-lg cursor-pointer h-2">
               <div class="flex justify-between text-[10px] text-spooky-cream/50 font-mono">
-                <span>20% (查看全貌)</span>
-                <span>350% (特写局部)</span>
+                <span>20%</span>
+                <span>350%</span>
               </div>
             </div>
 
@@ -342,7 +342,7 @@
           <div class="flex items-center gap-1.5">
             <span class="text-spooky-cream/70" data-i18n="label_creator">制作</span>:
             <a id="creator-link" href="https://hispooky.lofter.com/" target="_blank" rel="noopener noreferrer" class="text-spooky-orange hover:text-spooky-cream font-semibold underline underline-offset-2 transition-colors inline-flex items-center gap-0.5">
-              @HiSpooky
+              HiSpooky
               <i class="fa-solid fa-arrow-up-right-from-square text-[9px] ml-0.5"></i>
             </a>
           </div>
@@ -524,15 +524,15 @@
         filter_ghoul: "鬼火荧绿",
         label_creator: "制作",
         label_artist: "相框绘制",
-        return_notice: '欢迎在 LOFTER 搜索 <a href="https://hispooky.lofter.com/" target="_blank" rel="noopener noreferrer" class="text-spooky-orange hover:text-spooky-cream font-semibold underline underline-offset-2 transition-colors inline-flex items-center gap-0.5">HiSpooky<i class="fa-solid fa-arrow-up-right-from-square text-[9px] ml-0.5"></i></a> 在相关动态下返图',
+        return_notice: '欢迎在LOFTER搜索 <a href="https://hispooky.lofter.com/" target="_blank" rel="noopener noreferrer" class="text-spooky-orange hover:text-spooky-cream font-semibold underline underline-offset-2 transition-colors inline-flex items-center gap-0.5">HiSpooky<i class="fa-solid fa-arrow-up-right-from-square text-[9px] ml-0.5"></i></a> 在相关动态下返图',
         editing_slot_prefix: "正在编辑：第 ",
         editing_slot_suffix: " 格照片",
         badge_untorn: "● 连体版",
         badge_torn: "已撕开独立联",
         tear_divider_text: "易撕线",
-        toast_slot_loaded: "第 {n} 格照片已载入",
-        toast_slot_cleared: "已删除第 {n} 格照片",
-        toast_batch_loaded: "已成功载入 {n} 张照片！",
+        toast_slot_loaded: "第{n}格照片已载入",
+        toast_slot_cleared: "已删除第{n}格照片",
+        toast_batch_loaded: "已成功载入{n}张照片！",
         toast_cleared: "已清空所有照片",
         toast_torn: "咔嚓！双联相纸已撕开为独立两联",
         toast_rejoined: "相纸已重新拼合为整版双联",
@@ -1480,29 +1480,99 @@
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtx) return;
         const actx = new AudioCtx();
+        const t = actx.currentTime;
 
-        const osc = actx.createOscillator();
-        const gain = actx.createGain();
-        const filter = actx.createBiquadFilter();
+        // --- 辅助函数：生成微小的白噪声机械快门碎裂质感 ---
+        const playClickNoise = (time, duration, filterFreq, gainLevel) => {
+          const bufferSize = Math.floor(actx.sampleRate * duration);
+          const buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+          const noise = actx.createBufferSource();
+          noise.buffer = buffer;
 
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(140, actx.currentTime);
-        osc.frequency.linearRampToValueAtTime(80, actx.currentTime + 1.2);
+          const filter = actx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.setValueAtTime(filterFreq, time);
+          filter.Q.setValueAtTime(3.0, time);
 
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(800, actx.currentTime);
+          const gain = actx.createGain();
+          gain.gain.setValueAtTime(gainLevel, time);
+          gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
 
-        gain.gain.setValueAtTime(0.04, actx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.06, actx.currentTime + 0.6);
-        gain.gain.linearRampToValueAtTime(0.001, actx.currentTime + 1.3);
+          noise.connect(filter);
+          filter.connect(gain);
+          gain.connect(actx.destination);
 
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(actx.destination);
+          noise.start(time);
+          noise.stop(time + duration);
+        };
 
-        osc.start();
-        osc.stop(actx.currentTime + 1.3);
-      } catch (e) {}
+        // --- 1. 第一声机械快门升起 "咔" (t + 0.0) ---
+        playClickNoise(t, 0.035, 3200, 0.35);
+        
+        // 短促的机械弹片微敲
+        const osc1 = actx.createOscillator();
+        const gain1 = actx.createGain();
+        osc1.type = 'triangle';
+        osc1.frequency.setValueAtTime(420, t);
+        osc1.frequency.exponentialRampToValueAtTime(140, t + 0.04);
+        gain1.gain.setValueAtTime(0.2, t);
+        gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+        osc1.connect(gain1);
+        gain1.connect(actx.destination);
+        osc1.start(t);
+        osc1.stop(t + 0.04);
+
+        // --- 2. 第二声快门帘闭合 "嚓" (t + 0.08) ---
+        playClickNoise(t + 0.08, 0.055, 2600, 0.4);
+        
+        const osc2 = actx.createOscillator();
+        const gain2 = actx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(560, t + 0.08);
+        osc2.frequency.exponentialRampToValueAtTime(180, t + 0.12);
+        gain2.gain.setValueAtTime(0.18, t + 0.08);
+        gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        osc2.connect(gain2);
+        gain2.connect(actx.destination);
+        osc2.start(t + 0.08);
+        osc2.stop(t + 0.12);
+
+        // --- 3. 伴随相纸吐出的细腻复古微型过片电机声 (t + 0.16 ~ 0.55) ---
+        const motorNoiseLength = 0.38;
+        const motorBuffer = actx.createBuffer(1, Math.floor(actx.sampleRate * motorNoiseLength), actx.sampleRate);
+        const mdata = motorBuffer.getChannelData(0);
+        for (let i = 0; i < mdata.length; i++) {
+          mdata[i] = (Math.random() * 2 - 1) * 0.4;
+        }
+        const motorSource = actx.createBufferSource();
+        motorSource.buffer = motorBuffer;
+
+        const motorFilter = actx.createBiquadFilter();
+        motorFilter.type = 'bandpass';
+        motorFilter.frequency.setValueAtTime(850, t + 0.16);
+        motorFilter.frequency.linearRampToValueAtTime(700, t + 0.16 + motorNoiseLength);
+        motorFilter.Q.setValueAtTime(2.0, t + 0.16);
+
+        const motorGain = actx.createGain();
+        motorGain.gain.setValueAtTime(0.001, t + 0.16);
+        motorGain.gain.linearRampToValueAtTime(0.045, t + 0.22);
+        motorGain.gain.linearRampToValueAtTime(0.035, t + 0.45);
+        motorGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16 + motorNoiseLength);
+
+        motorSource.connect(motorFilter);
+        motorFilter.connect(motorGain);
+        motorGain.connect(actx.destination);
+
+        motorSource.start(t + 0.16);
+        motorSource.stop(t + 0.16 + motorNoiseLength);
+
+      } catch (e) {
+        console.warn("Audio synthesis error:", e);
+      }
     }
 
     function triggerDispenserExperience(previewData, onComplete) {
@@ -1652,7 +1722,7 @@
               // 先触发第一张（相片）的下载
               await saveCanvasImage(photoCanvas, `SpookyBooth_1_PhotoStrip_${Date.now()}.png`);
 
-              // 针对桌面端：延迟 800ms 继续自动保存第二张；针对移动端 Edge：避免连续弹窗被系统杀掉覆盖，引导使用下方的独立按钮或长按
+              // 针对桌面端：延迟800ms继续自动保存第二张；针对移动端Edge：避免连续弹窗被系统杀掉覆盖，引导使用下方的独立按钮或长按
               if (!isMobile) {
                 setTimeout(async () => {
                   await saveCanvasImage(bookmarkCanvas, `SpookyBooth_2_Bookmark_${Date.now()}.png`);
